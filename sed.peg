@@ -8,8 +8,8 @@ commands <- command (eol command)* eol
 command <- space* function space* / &eol
 
 addr_0 <- ''
-addr_1 <- <[0-9]+>
-addr_2 <- <[0-9]+ ',' [0-9]+> 
+addr_1 <- <[0-9]+> space*
+addr_2 <- <[0-9]+ ',' [0-9]+> space*
 
 function <-
   # 0addr
@@ -32,7 +32,7 @@ function <-
 
 function_list <- '{' (eol command)* eol space* '}'
 
-negate <- '!' !negate function
+negate <- '!' space* !negate space* function
 
 ~space <- ' ' / '\t'
 ~eol <- '\r\n' / '\n' / '\r'
