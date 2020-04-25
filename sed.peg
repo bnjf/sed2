@@ -1,0 +1,48 @@
+# vim:set ft=peg:
+
+# The form of a sed command is as follows:
+#      [address[,address]]function[arguments]
+# Whitespace may be inserted before the first address and the function portions of the command.
+
+commands <- command (eol command)* eol
+command <- space* function space* / &eol
+
+addr_0 <- ''
+addr_1 <- <[0-9]+>
+addr_2 <- <[0-9]+ ',' [0-9]+> 
+
+function <-
+  # 0addr
+  (set_label / comment) /
+  # 1addr
+  (addr_1)? (
+    'a' / 'i' / 'q' / 'r') /
+  # 2addr
+  (addr_2 / addr_1)? (
+    negate /
+    function_list /
+    'c' /
+    branch / test /
+    'd' / 'D' / 'g' / 'G' / 'h' / 'H' / 'x' /
+    'n' / 'N' /
+    'l' / print / 'P' /
+    substitute /
+    'w' /
+    'y')
+
+function_list <- '{' (eol command)* eol space* '}'
+
+negate <- '!' !negate function
+
+~space <- ' ' / '\t'
+~eol <- '\r\n' / '\n' / '\r'
+
+comment <- '#' (!eol .)*
+print <- 'p'
+
+substitute <- 's' $sep<'/'> (!$sep .)* $sep (!$sep .)* $sep
+
+set_label <- ':' space* < [a-z]+ >
+test <- 't' space* < [a-z]+ >?
+branch <- 'b' space* < [a-z]+ >?
+
