@@ -2,11 +2,13 @@
 
 # The form of a sed command is as follows:
 #      [address[,address]]function[arguments]
-# Whitespace may be inserted before the first address and the function portions of the command.
+# Whitespace may be inserted before the first address and the function portions
+# of the command.
 
-commands <- command (eol command)* eol
-command <- space* function space* / &eol
+commands <- command ((eol / semicolon)+ command)* eol+ !.
+command <- space* function space* comment?
 
+# addr {{{
 # 0addr negation might look odd, but it allows for rudimentary factoring like:
 #
 #   !{:common; s/foo/bar/; ... }
@@ -15,9 +17,12 @@ command <- space* function space* / &eol
 addr_0 <- negate?
 addr_1 <- address_type space* negate?
 addr_2 <- address_type ',' address_type space* negate?
+# TODO pattern address escapes
 address_type <- [0-9]+ / '$' / ('/' (!'/' .)* '/')
 negate <- '!' space* !'!'
+# }}}
 
+# function {{{
 function <-
   # 0addr
   (addr_0)? (set_label / comment) /
@@ -27,26 +32,37 @@ function <-
   # 2addr
   (addr_2 / addr_1 / addr_0)? (
     function_list /
-    'c' /
+    change /
     branch / test /
-    'd' / 'D' / 'g' / 'G' / 'h' / 'H' / 'x' /
-    'n' / 'N' /
+    delete / 'D' / 'g' / 'G' / 'h' / 'H' / 'x' /
+    'n' / append_next /
     'l' / print / 'P' /
     substitute /
     write /
     transliterate)
+# }}}
 
-function_list <- '{' ((eol / space)* command)* eol space* '}'
+# { is a "function", but is a bit special.  It can span multiple lines, and
+# internally has 0..n further functions.  POSIX.1 specifies "a list", but GNU
+# sed does allow an empty body.  The commands are delimited by semicolons or
+# newlines, although the final function doesn't seem to require either.
+
+function_list <- '{' space* eol* (command (eol / semicolon)+)* command? space* '}'
 
 ~space <- ' ' / '\t'
-# XXX TODO ';' is not EOL, of course.  there should be a command delimeter
-# class instead.
-~eol <- '\r\n' / '\n' / '\r' / ';'
+~eol <- '\r\n' / '\n' / '\r'
+semicolon <- ';'
 
 comment <- '#' (!eol .)*
-print <- 'p'
 
-substitute <- 's' $sep<'/'> (!$sep .)* $sep (!$sep .)* $sep substitute_flags?
+# s/// {{{
+substitute <-
+  's' $sep<[/,1]>
+  substitute_re $sep
+  substitute_replacement $sep
+  substitute_flags*
+substitute_re <-          (('\\' $sep) / !$sep .)*
+substitute_replacement <- (('\\' $sep) / !$sep .)*
 
 # Quoting 1003.1-2001 section 4.11:
 #
@@ -59,14 +75,32 @@ substitute <- 's' $sep<'/'> (!$sep .)* $sep (!$sep .)* $sep substitute_flags?
 # GNU sed will accept a null string as an argument to the `w` flag, however.
 # This results in ENOENT.
 
-substitute_flags <- ([0-9] / 'g' / 'p')* ('w' space* (!eol .)+)?
+substitute_flags <-
+  # chomp write first!
+  write /
+  # XXX flag nth should only appear once
+  substitute_flag_nth / substitute_flag_global / substitute_flag_print
+substitute_flag_global <- 'g'
+substitute_flag_print <- 'p'
+substitute_flag_nth <- [0-9]+
+# }}}
 
-set_label <- ':' space* < [a-z]+ >
-test <- 't' space* < [a-z]+ >?
-branch <- 'b' space* < [a-z]+ >?
+print <- 'p'
+
+# flow control
+set_label <- ':' space* < label_name >
+test <- 't' space* < label_name >?
+branch <- 'b' space* < label_name >?
+label_name <- [A-Za-z0-9]+
 
 transliterate <- 'y' $sep<'/'> (!$sep .)* $sep (!$sep .)* $sep
 
-# XXX rewrite substitute_flags
-write <- 'w' space* (!eol .)+
+write <- 'w' space* <write_argument>
+write_argument <- (!eol .)+
+
+change <- 'c' (!eol .)+
+
+delete <- 'd'
+
+append_next <- 'N'
 
