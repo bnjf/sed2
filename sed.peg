@@ -7,19 +7,25 @@
 commands <- command (eol command)* eol
 command <- space* function space* / &eol
 
-addr_0 <- ''
-addr_1 <- <[0-9]+> space*
-addr_2 <- <[0-9]+ ',' [0-9]+> space*
+# 0addr negation might look odd, but it allows for rudimentary factoring like:
+#
+#   !{:common; s/foo/bar/; ... }
+#   /a/ { s/a/b/; b common }
+#   /b/ { s/b/a/; b common }
+addr_0 <- negate?
+addr_1 <- address_type space* negate?
+addr_2 <- address_type ',' address_type space* negate?
+address_type <- [0-9]+ / '$' / ('/' (!'/' .)* '/')
+negate <- '!' space* !'!'
 
 function <-
   # 0addr
-  (set_label / comment) /
+  (addr_0)? (set_label / comment) /
   # 1addr
-  (addr_1)? (
+  (addr_1 / addr_0)? (
     'a' / 'i' / 'q' / 'r') /
   # 2addr
-  (addr_2 / addr_1)? (
-    negate /
+  (addr_2 / addr_1 / addr_0)? (
     function_list /
     'c' /
     branch / test /
@@ -27,22 +33,40 @@ function <-
     'n' / 'N' /
     'l' / print / 'P' /
     substitute /
-    'w' /
-    'y')
+    write /
+    transliterate)
 
-function_list <- '{' (eol command)* eol space* '}'
-
-negate <- '!' space* !negate space* function
+function_list <- '{' ((eol / space)* command)* eol space* '}'
 
 ~space <- ' ' / '\t'
-~eol <- '\r\n' / '\n' / '\r'
+# XXX TODO ';' is not EOL, of course.  there should be a command delimeter
+# class instead.
+~eol <- '\r\n' / '\n' / '\r' / ';'
 
 comment <- '#' (!eol .)*
 print <- 'p'
 
-substitute <- 's' $sep<'/'> (!$sep .)* $sep (!$sep .)* $sep
+substitute <- 's' $sep<'/'> (!$sep .)* $sep (!$sep .)* $sep substitute_flags?
+
+# Quoting 1003.1-2001 section 4.11:
+#
+#   "A null pathname shall not be successfully resolved."
+#
+# OK, but what about a filename?  Quoting 1003.1-2001 section 3.169:
+#
+#   "A name consisting of 1 to {NAME_MAX} bytes used to name a file."
+#
+# GNU sed will accept a null string as an argument to the `w` flag, however.
+# This results in ENOENT.
+
+substitute_flags <- ([0-9] / 'g' / 'p')* ('w' space* (!eol .)+)?
 
 set_label <- ':' space* < [a-z]+ >
 test <- 't' space* < [a-z]+ >?
 branch <- 'b' space* < [a-z]+ >?
+
+transliterate <- 'y' $sep<'/'> (!$sep .)* $sep (!$sep .)* $sep
+
+# XXX rewrite substitute_flags
+write <- 'w' space* (!eol .)+
 
