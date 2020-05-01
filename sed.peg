@@ -5,8 +5,8 @@
 # Whitespace may be inserted before the first address and the function portions
 # of the command.
 
-commands <- command ((eol / semicolon)+ command)* eol+ !.
-command <- space* function space* comment?
+program <- command* !.
+command <- function space* !function / semicolon / comment / space+ / eol+
 
 # addr {{{
 # 0addr negation might look odd, but it allows for rudimentary factoring like:
@@ -25,7 +25,7 @@ negate <- '!' space* !'!'
 # function {{{
 function <-
   # 0addr
-  (addr_0)? (set_label / comment) /
+  (addr_0)? (set_label) /
   # 1addr
   (addr_1 / addr_0)? (
     'a' / 'i' / 'q' / 'r') /
@@ -51,13 +51,12 @@ function <-
 # sed does allow an empty body.  The commands are delimited by semicolons or
 # newlines, although the final function doesn't seem to require either.
 
-function_list <- '{' space* eol* (command (eol / semicolon)+)* command? space* '}'
+function_list <- '{' command* '}'
 
 ~space <- ' ' / '\t'
 ~eol <- '\r\n' / '\n' / '\r'
 semicolon <- ';'
-
-comment <- '#' (!eol .)*
+comment <- '#' (!eol .)* eol
 
 # s/// {{{
 substitute <-
