@@ -33,10 +33,14 @@ function <-
   (addr_2 / addr_1 / addr_0)? (
     function_list /
     change /
-    branch / test /
-    delete / 'D' / 'g' / 'G' / 'h' / 'H' / 'x' /
-    'n' / append_next /
-    'l' / print / 'P' /
+    branch /
+    test /
+    delete /
+    'D' / 'g' / 'G' / 'h' / 'H' / 'x' / 'n' /
+    append_next /
+    'l' /
+    print /
+    'P' /
     substitute /
     write /
     transliterate)
